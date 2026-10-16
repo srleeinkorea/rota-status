@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-16T14:26:30.101Z",
+  "generatedAt": "2026-10-16T14:26:32.885Z",
   "windowLabel": "최근 3일",
   "minPicks": 10,
   "totalParticipants": 966,
@@ -773,14 +773,14 @@
           "bet": 500
         },
         {
-          "team": "FUR",
-          "url": "https://www.fmkorea.com/10453502838",
-          "bet": 300
-        },
-        {
           "team": "르망",
           "url": "https://www.fmkorea.com/10453798446",
           "bet": 500
+        },
+        {
+          "team": "FUR",
+          "url": "https://www.fmkorea.com/10453502838",
+          "bet": 300
         }
       ]
     },
@@ -1334,14 +1334,14 @@
           "bet": 6536
         },
         {
-          "team": "C9",
-          "url": "https://www.fmkorea.com/10453502838",
-          "bet": 817
-        },
-        {
           "team": "르망",
           "url": "https://www.fmkorea.com/10453798446",
           "bet": 3268
+        },
+        {
+          "team": "C9",
+          "url": "https://www.fmkorea.com/10453502838",
+          "bet": 817
         }
       ]
     },
