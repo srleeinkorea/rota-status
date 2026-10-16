@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-16T14:31:37.902Z",
+  "generatedAt": "2026-10-16T14:32:37.604Z",
   "windowLabel": "최근 3일",
   "minPicks": 10,
   "totalParticipants": 966,
@@ -228,13 +228,13 @@
           "bet": 100
         },
         {
-          "team": "C9",
-          "url": "https://www.fmkorea.com/10453502838",
+          "team": "클리블랜드",
+          "url": "https://www.fmkorea.com/10453454449",
           "bet": 100
         },
         {
-          "team": "클리블랜드",
-          "url": "https://www.fmkorea.com/10453454449",
+          "team": "C9",
+          "url": "https://www.fmkorea.com/10453502838",
           "bet": 100
         }
       ]
@@ -450,14 +450,14 @@
           "bet": 200
         },
         {
-          "team": "툴루즈",
-          "url": "https://www.fmkorea.com/10453798446",
-          "bet": 100
-        },
-        {
           "team": "클리블랜드",
           "url": "https://www.fmkorea.com/10453454449",
           "bet": 200
+        },
+        {
+          "team": "툴루즈",
+          "url": "https://www.fmkorea.com/10453798446",
+          "bet": 100
         }
       ]
     },
@@ -774,8 +774,8 @@
           "bet": 500
         },
         {
-          "team": "르망",
-          "url": "https://www.fmkorea.com/10453798446",
+          "team": "탬파베이",
+          "url": "https://www.fmkorea.com/10453454449",
           "bet": 500
         },
         {
@@ -784,8 +784,8 @@
           "bet": 300
         },
         {
-          "team": "탬파베이",
-          "url": "https://www.fmkorea.com/10453454449",
+          "team": "르망",
+          "url": "https://www.fmkorea.com/10453798446",
           "bet": 500
         }
       ]
@@ -876,6 +876,11 @@
           "team": "MVK",
           "url": "https://www.fmkorea.com/10452368407",
           "bet": 500
+        },
+        {
+          "team": "클리블랜드",
+          "url": "https://www.fmkorea.com/10453454449",
+          "bet": 1400
         }
       ]
     },
@@ -1101,13 +1106,13 @@
           "bet": 1000
         },
         {
-          "team": "르망",
-          "url": "https://www.fmkorea.com/10453798446",
+          "team": "탬파베이",
+          "url": "https://www.fmkorea.com/10453454449",
           "bet": 1000
         },
         {
-          "team": "탬파베이",
-          "url": "https://www.fmkorea.com/10453454449",
+          "team": "르망",
+          "url": "https://www.fmkorea.com/10453798446",
           "bet": 1000
         }
       ]
@@ -1340,14 +1345,14 @@
           "bet": 6536
         },
         {
-          "team": "르망",
-          "url": "https://www.fmkorea.com/10453798446",
-          "bet": 3268
-        },
-        {
           "team": "C9",
           "url": "https://www.fmkorea.com/10453502838",
           "bet": 817
+        },
+        {
+          "team": "르망",
+          "url": "https://www.fmkorea.com/10453798446",
+          "bet": 3268
         }
       ]
     },
