@@ -71,18 +71,19 @@
     padding:9px 16px; border-radius:999px; font-weight:600; font-size:13px;
   }
   .match-card {
-    display:block; background:var(--card); border:1px solid var(--border); border-radius:12px;
-    padding:12px 14px; margin-bottom:8px; text-decoration:none; color:var(--text);
+    display:block; background:var(--card); border:1px solid var(--border); border-radius:10px;
+    padding:7px 10px; margin-bottom:4px; text-decoration:none; color:var(--text);
   }
   .match-card:hover { border-color:var(--accent); }
-  .match-title { font-size:11.5px; color:var(--dim); margin-bottom:8px; }
-  .match-sides { display:flex; align-items:center; gap:10px; }
+  .match-title { font-size:10.5px; color:var(--dim); margin-bottom:4px; }
+  .match-sides { display:flex; align-items:center; gap:6px; }
   .match-side { flex:1; }
-  .match-side .team { font-weight:700; font-size:13.5px; margin-bottom:3px; }
-  .match-side .bar-track { height:6px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden; margin-bottom:4px; }
+  .match-side .team { font-weight:700; font-size:12.5px; margin-bottom:2px; }
+  .match-side .bar-track { height:4px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden; margin-bottom:2px; }
   .match-side .bar-fill { height:100%; background:var(--accent); border-radius:999px; }
-  .match-side .stat { font-size:11px; color:var(--faint); }
-  .match-vs { color:var(--faint); font-size:11px; font-weight:700; }
+  .match-side .stat { font-size:10.5px; color:var(--faint); }
+  .match-side .odds { color:var(--win); font-weight:700; }
+  .match-vs { color:var(--faint); font-size:10.5px; font-weight:700; }
   .search-box { position:relative; margin:14px 0 20px; }
   .search-box input {
     width:100%; background:var(--card); border:1px solid var(--border); color:var(--text);
@@ -209,24 +210,31 @@ function rowHtml(r, withMoney, rankIdx) {
   return html;
 }
 
+function oddsFor(sum, side) {
+  if (!sum || !side) return '-';
+  return (sum / side).toFixed(2);
+}
+
 function matchCardHtml(m) {
   const totalA = m.betA || 0, totalB = m.betB || 0;
   const sum = totalA + totalB;
   const pctA = sum > 0 ? Math.round((totalA / sum) * 100) : 50;
   const pctB = 100 - pctA;
+  const oddsA = oddsFor(sum, totalA);
+  const oddsB = oddsFor(sum, totalB);
   return `<a class="match-card" href="${escapeHtml(m.url)}" target="_blank" rel="noopener noreferrer">
     <div class="match-title">${escapeHtml(m.title)}</div>
     <div class="match-sides">
       <div class="match-side">
         <div class="team">${escapeHtml(m.teamA)}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${pctA}%;"></div></div>
-        <div class="stat">${m.countA || 0}명 · ${numFmt(totalA)}P (${pctA}%)</div>
+        <div class="stat"><span class="odds">${oddsA}배</span> · ${m.countA || 0}명 · ${numFmt(totalA)}P (${pctA}%)</div>
       </div>
       <div class="match-vs">VS</div>
       <div class="match-side">
         <div class="team">${escapeHtml(m.teamB)}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${pctB}%;"></div></div>
-        <div class="stat">${m.countB || 0}명 · ${numFmt(totalB)}P (${pctB}%)</div>
+        <div class="stat"><span class="odds">${oddsB}배</span> · ${m.countB || 0}명 · ${numFmt(totalB)}P (${pctB}%)</div>
       </div>
     </div>
   </a>`;
@@ -243,8 +251,10 @@ function render(data) {
   let html = '';
   const matches = data.ongoingMatches || [];
   if (matches.length) {
-    html += `<div class="section-title">🔴 진행중인 경기 <span class="count-badge">${matches.length}건</span></div>`;
+    html += `<div class="section-title" style="margin-bottom:6px;">🔴 진행중인 경기 <span class="count-badge">${matches.length}건</span></div>`;
+    html += '<div style="margin-bottom:14px;">';
     matches.forEach((m) => { html += matchCardHtml(m); });
+    html += '</div>';
   }
 
   html += `<div class="section-title">🏆 종합 승률 랭킹 <span class="count-badge">${data.overall.length}명</span></div>`;
