@@ -3,79 +3,39 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ROTA 진행상황</title>
+<title>에펨코리아 정산 승률 분석기</title>
 <style>
-  :root{
-    --bg:#f5f7fb; --card:#ffffff; --fg:#1b1f29; --muted:#6b7280;
-    --line:#e6e8ee; --accent:#2f66f5; --ok:#1f9d55; --warn:#d97706;
+  :root { --bg:#0f1115; --card:#171a21; --border:#262a33; --text:#eceef1; --dim:#9aa1ad; --accent:#4f8cff; }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    padding:24px;
   }
-  @media (prefers-color-scheme: dark){
-    :root{ --bg:#14161b; --card:#1c1f26; --fg:#e8eaf0; --muted:#98a2b3; --line:#2c313c; --accent:#5b8aff; --ok:#3ccf7b; --warn:#f0a43c; }
+  .card {
+    max-width:560px; width:100%; background:var(--card); border:1px solid var(--border);
+    border-radius:16px; padding:32px; box-shadow:0 12px 40px rgba(0,0,0,.4);
   }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans KR",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
-  .wrap{max-width:760px;margin:0 auto;padding:40px 20px 80px}
-  header{margin-bottom:28px}
-  h1{font-size:26px;margin:0 0 6px}
-  .sub{color:var(--muted);font-size:14px}
-  .badge{display:inline-block;background:var(--accent);color:#fff;font-weight:700;font-size:12px;padding:3px 10px;border-radius:99px;margin-left:8px;vertical-align:middle}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:18px}
-  .card h2{font-size:15px;margin:0 0 12px;letter-spacing:.02em}
-  ul{margin:0;padding-left:18px}
-  li{margin-bottom:6px;font-size:14px}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  @media(max-width:560px){.grid{grid-template-columns:1fr}}
-  .feat{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
-  .feat b{display:block;font-size:13px;margin-bottom:4px}
-  .feat span{color:var(--muted);font-size:12.5px}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  td{padding:7px 4px;border-bottom:1px solid var(--line);vertical-align:top}
-  td.v{white-space:nowrap;font-weight:700;color:var(--accent);width:70px}
-  .pending{border-left:3px solid var(--warn);padding-left:12px}
-  footer{color:var(--muted);font-size:12px;margin-top:30px}
+  h1 { font-size:20px; margin:0 0 8px; }
+  p { color:var(--dim); line-height:1.6; font-size:14px; }
+  a.btn {
+    display:inline-block; margin-top:16px; background:var(--accent); color:#fff; text-decoration:none;
+    padding:10px 18px; border-radius:999px; font-weight:600; font-size:14px;
+  }
+  a.btn:hover { filter:brightness(1.1); }
+  code {
+    display:block; margin-top:16px; background:#0c0e12; border:1px solid var(--border); border-radius:8px;
+    padding:10px 12px; font-size:12px; color:var(--dim); word-break:break-all;
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>ROTA 진행상황<span class="badge">v1.66.16</span></h1>
-    <div class="sub">잉여력놀이터 자동화 유저스크립트 — 포텐 추천 · 예약 글쓰기 · 내 글 추천 통합</div>
-  </header>
-
   <div class="card">
-    <h2>기능 구성</h2>
-    <div class="grid">
-      <div class="feat"><b>ROTA</b><span>포텐 추천 → 조건부 댓글 → 다음글 자동화. 담소 카테고리 글에서만 동작.</span></div>
-      <div class="feat"><b>예약 글쓰기</b><span>새하(00:00) · 맛아(07:00) · 잉출(08:00, 평일) · 맛점(11:00) · 맛저(17:00) · 잉퇴(18:00, 평일)</span></div>
-      <div class="feat"><b>내 글 추천</b><span>알림 감시 → 본인 글 댓글 전체 추천 / 타인 글은 해당 댓글만 추천.</span></div>
-      <div class="feat"><b>선물 글쓰기</b><span>승부예측 "잉여력 선물" 알림 자동 감지 → 내역 조회 → 자동 글쓰기.</span></div>
-    </div>
+    <h1>📊 에펨코리아 정산 승률 분석기</h1>
+    <p>잉여력놀이터 '정산' 게시판 글들을 자동으로 읽어서 참가자별 승률(종합/종목별)을 집계해주는 Tampermonkey 유저스크립트입니다. 아래 버튼을 누르면 Tampermonkey 설치 화면으로 이동합니다.</p>
+    <a class="btn" href="https://raw.githubusercontent.com/srleeinkorea/rota-status/main/fmkorea_jungsan_analyzer.user.js">유저스크립트 설치하기</a>
+    <p style="margin-top:20px;">설치 후에는 새 버전이 올라올 때마다 Tampermonkey가 자동으로 업데이트를 감지합니다.</p>
+    <code>https://raw.githubusercontent.com/srleeinkorea/rota-status/main/fmkorea_jungsan_analyzer.user.js</code>
   </div>
-
-  <div class="card">
-    <h2>최근 변경 이력</h2>
-    <table>
-      <tr><td class="v">1.66.16</td><td>UI 통일감 — 섹션 헤더 상태점, 버튼 크기/톤 통일, 호버 영역 추가</td></tr>
-      <tr><td class="v">1.66.15</td><td>잉출(08:00)/잉퇴(18:00) 평일 전용 자동글 추가</td></tr>
-      <tr><td class="v">1.66.13-14</td><td>ROTA는 '담소' 카테고리에서만 동작 (다른 카테고리는 패널도 안 뜸)</td></tr>
-      <tr><td class="v">1.66.11-12</td><td>패널 순서 조정, 07:00 자동글 문구 변경</td></tr>
-      <tr><td class="v">1.66.10</td><td>포텐 간격 기본값 5초로 최적화 (실제 로그 300건 분석)</td></tr>
-      <tr><td class="v">1.66.9</td><td>끼어들기 중 미추천 댓글 10개씩 분할 처리 (한 번에 오래 안 멈추게)</td></tr>
-      <tr><td class="v">1.66.7-8</td><td>잉여력 선물 복사 줄바꿈 수정, 끼어들기 디바운스(5초)</td></tr>
-      <tr><td class="v">1.66.5-6</td><td>ROTA + 내 글 추천 감시를 한 탭에서 동시 운용</td></tr>
-      <tr><td class="v">1.66.3-4</td><td>localStorage 탭 키 자동 정리, 자정 자동 재활성화</td></tr>
-    </table>
-  </div>
-
-  <div class="card pending">
-    <h2>미해결 / 보류</h2>
-    <ul>
-      <li>"ㄹㄹ" 연속 글 감지 후 자동 참여 기능 — 규칙 설계까지만 완료, 구현은 보류</li>
-      <li>예약 글쓰기 on/off를 탭 간 공유 저장소로 바꾸는 안 — 사용자가 명시적으로 보류 요청</li>
-    </ul>
-  </div>
-
-  <footer>이 페이지는 수동으로 업데이트됩니다.</footer>
-</div>
 </body>
 </html>
