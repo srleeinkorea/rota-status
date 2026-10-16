@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         에펨코리아 정산 승률 분석기
 // @namespace    fmkorea-jungsan-analyzer
-// @version      3.4
+// @version      3.5
 // @description  잉여력놀이터 '정산' 게시판의 최근 24시간 내 마감 글들을 자동으로 읽어서 참가자별 승률(종합/종목별)을 집계합니다. 사이트 내부 AJAX(pp.getPpList)를 그대로 호출해서, 글을 일일이 열고 참여현황을 손으로 베낄 필요가 없습니다. 종합 랭킹에는 진행중인(아직 결과가 안 나온) 경기에 누가 어디 베팅했는지도 함께 보여줍니다.
 // @match        https://www.fmkorea.com/*
 // @grant        none
@@ -13,7 +13,7 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = '3.4';
+  const SCRIPT_VERSION = '3.5';
   const CATEGORIES = [
     { id: '4874265175', label: '정산' },
     { id: '5179656568', label: '정산(결산미포함)' },
@@ -30,6 +30,15 @@
   const REQUEST_JITTER_MS = 180;         // 기본 지연에 더해지는 무작위 지연(0~이 값 사이)
   const CONCURRENCY = 3;                 // 글 처리 동시 진행 수
   const LIST_PAGE_BATCH = 1;             // 목록 페이지는 여전히 동시에 여러 장 긁지 않고 한 장씩
+
+  // ---------- GitHub 대시보드 동기화 ----------
+  // 분석이 끝날 때마다 결과 JSON을 GitHub 저장소에 올려서, 별도의 GitHub Pages 대시보드가
+  // 그 파일을 읽어 보여줄 수 있게 한다(진짜 실시간은 아니고, 분석을 돌릴 때마다 갱신됨 —
+  // GitHub Pages는 정적 사이트라 fmkorea.com에 직접 요청을 못 보내기 때문).
+  const GITHUB_REPO = 'srleeinkorea/rota-status';
+  const GITHUB_DATA_PATH = 'data.json';
+  const GH_TOKEN_KEY = 'jsa-gh-token-v1';
+  const UPLOAD_TOP_N = 100; // 대시보드 용량/속도를 위해 종합 랭킹은 상위 100명까지만 올림
 
   // ---------- 유틸 ----------
   function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
@@ -716,6 +725,7 @@
       <div class="jsa-header" id="jsa-drag-handle">
         <span class="jsa-grip">⠿</span>
         <span class="jsa-title">📊 정산 승률 분석기 <span class="jsa-version">v${SCRIPT_VERSION}</span></span>
+        <button id="jsa-settings" class="jsa-headerbtn" title="GitHub 대시보드 연동 설정">⚙</button>
         <button id="jsa-minimize" class="jsa-headerbtn" title="최소화">—</button>
         <button id="jsa-close" class="jsa-headerbtn" title="닫기">×</button>
       </div>
@@ -756,6 +766,19 @@
     window.addEventListener('resize', () => clampPanelToViewport(panel));
 
     panel.querySelector('#jsa-close').onclick = () => panel.remove();
+    panel.querySelector('#jsa-settings').onclick = () => {
+      const current = getGithubToken();
+      const masked = current ? `설정됨 (끝자리 ...${current.slice(-4)})` : '설정 안 됨';
+      const input = window.prompt(
+        `분석이 끝날 때마다 결과를 GitHub 대시보드(${GITHUB_REPO})에 올리려면, repo 쓰기 권한이 있는 ` +
+        `GitHub Personal Access Token을 입력하세요.\n현재 상태: ${masked}\n` +
+        `(비워두고 확인을 누르면 저장된 토큰을 삭제합니다. 취소를 누르면 변경 없이 닫힙니다.)`,
+        ''
+      );
+      if (input === null) return; // 취소
+      setGithubToken(input.trim());
+      alert(input.trim() ? 'GitHub 토큰이 저장되었습니다.' : 'GitHub 토큰이 삭제되었습니다.');
+    };
     const body = panel.querySelector('#jsa-body');
     const minBtn = panel.querySelector('#jsa-minimize');
     minBtn.onclick = () => {
@@ -892,6 +915,83 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  // ---------- 5.5 GitHub 대시보드 동기화 ----------
+  function getGithubToken() {
+    try { return localStorage.getItem(GH_TOKEN_KEY) || ''; } catch (e) { return ''; }
+  }
+  function setGithubToken(token) {
+    try {
+      if (token) localStorage.setItem(GH_TOKEN_KEY, token);
+      else localStorage.removeItem(GH_TOKEN_KEY);
+    } catch (e) { /* 무시 */ }
+  }
+
+  // UTF-8 안전 base64 인코딩 (한글 포함 JSON을 올리기 위함)
+  function utf8ToBase64(str) {
+    const bytes = new TextEncoder().encode(str);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+
+  // 업로드할 JSON payload 구성 — 종합 랭킹 상위 N명 + 종목별 랭킹 + 진행중인 베팅 picks
+  function buildDashboardPayload(records, minPicks, ongoingPicksMap, windowLabel) {
+    const overall = overallRanking(records, minPicks);
+    const bySport = sportRanking(records, Math.max(2, Math.min(2, minPicks)));
+    const overallSlim = overall.slice(0, UPLOAD_TOP_N).map((r) => ({
+      name: r.name, win: r.win, lose: r.lose, total: r.total, rate: Math.round(r.rate * 10) / 10,
+      totalBet: r.totalBet, totalPayout: r.totalPayout, profit: r.profit,
+      picks: (ongoingPicksMap && ongoingPicksMap.get(r.name)) || [],
+    }));
+    const sportsSlim = {};
+    for (const [sport, arr] of bySport.entries()) {
+      sportsSlim[sport] = arr.slice(0, SPORT_TOP).map((r) => ({
+        name: r.name, win: r.win, lose: r.lose, total: r.total, rate: Math.round(r.rate * 10) / 10,
+      }));
+    }
+    return {
+      generatedAt: new Date().toISOString(),
+      windowLabel: windowLabel || null,
+      minPicks,
+      totalParticipants: overall.length,
+      overall: overallSlim,
+      sports: sportsSlim,
+    };
+  }
+
+  async function uploadResultsToGitHub(records, minPicks, ongoingPicksMap, windowLabel, log) {
+    const token = getGithubToken();
+    if (!token) return; // 토큰 설정 안 돼 있으면 조용히 건너뜀 (패널 설정에서 등록 가능)
+    try {
+      const payload = buildDashboardPayload(records, minPicks, ongoingPicksMap, windowLabel);
+      const content = utf8ToBase64(JSON.stringify(payload, null, 2));
+      const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_DATA_PATH}`;
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      };
+      // 기존 파일의 sha를 먼저 조회(있으면 업데이트, 없으면 새로 생성)
+      let sha;
+      const getRes = await fetch(apiUrl, { headers });
+      if (getRes.ok) {
+        const info = await getRes.json();
+        sha = info.sha;
+      }
+      const body = { message: `대시보드 데이터 갱신 (${payload.generatedAt})`, content };
+      if (sha) body.sha = sha;
+      const putRes = await fetch(apiUrl, { method: 'PUT', headers, body: JSON.stringify(body) });
+      if (!putRes.ok) {
+        const errText = await putRes.text().catch(() => '');
+        if (log) log(`GitHub 대시보드 업로드 실패 (${putRes.status}): ${errText.slice(0, 150)}`);
+      } else if (log) {
+        log('GitHub 대시보드에 결과 업로드 완료.');
+      }
+    } catch (e) {
+      if (log) log('GitHub 대시보드 업로드 중 오류: ' + e.message);
+    }
+  }
+
   // ---------- 6. 새로고침에도 끊기지 않는 작업(Job) 상태 저장 ----------
   // 이 페이지(dispBoardOngoingMatches)는 다른 스크립트가 1분마다 새로고침을 거는 경우가 있어서,
   // 분석 진행 상태를 localStorage에 계속 저장해두고, 새로고침 후에도 자동으로 이어서 진행한다.
@@ -1022,6 +1122,9 @@
     job.status = 'done';
     saveJob(job); // 완료 상태도 저장해둬서, 새로고침 후 다시 열었을 때 바로 결과가 보이게 함
     renderResult(panel, records, job.minPicks, ongoingPicksMap);
+
+    // 새로 완료된 분석 결과를 GitHub 대시보드용 데이터로 올림 (토큰 미설정 시 조용히 건너뜀)
+    uploadResultsToGitHub(records, job.minPicks, ongoingPicksMap, job.windowLabel, log);
   }
 
   async function startNewRun(panel) {
@@ -1052,7 +1155,7 @@
 
     const job = {
       status: 'running',
-      minPicks, windowValue,
+      minPicks, windowValue, windowLabel: windowOpt.label,
       posts, nextIndex: 0, allPostResults: [],
       startedAt: Date.now(),
     };
