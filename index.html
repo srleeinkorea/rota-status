@@ -83,6 +83,16 @@
   .match-side .bar-fill { height:100%; background:var(--accent); border-radius:999px; }
   .match-side .stat { font-size:11px; color:var(--faint); }
   .match-vs { color:var(--faint); font-size:11px; font-weight:700; }
+  .search-box { position:relative; margin:14px 0 20px; }
+  .search-box input {
+    width:100%; background:var(--card); border:1px solid var(--border); color:var(--text);
+    border-radius:10px; padding:10px 14px; font-size:14px; outline:none;
+  }
+  .search-box input:focus { border-color:var(--accent); }
+  .search-box .hint { margin-top:6px; font-size:11.5px; color:var(--faint); }
+  tr.jsa-hide { display:none; }
+  tr.jsa-match td:first-child { position:relative; }
+  tr.jsa-match { background:var(--accent-dim) !important; }
   #jsa-lock {
     position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center;
     z-index:999; flex-direction:column; gap:14px;
@@ -110,6 +120,10 @@
       <a class="install-link" href="https://raw.githubusercontent.com/srleeinkorea/rota-status/main/fmkorea_jungsan_analyzer.user.js">유저스크립트 설치</a>
     </header>
     <div class="meta" id="meta">불러오는 중...</div>
+    <div class="search-box">
+      <input id="jsa-search" type="text" placeholder="🔍 닉네임으로 찾기 (예: 손나은)" autocomplete="off">
+      <div class="hint" id="jsa-search-hint"></div>
+    </div>
     <div id="content"></div>
   </div>
 
@@ -174,7 +188,7 @@ function picksHtml(picks) {
 function rowHtml(r, withMoney, rankIdx) {
   const medal = ['r1','r2','r3'][rankIdx] || '';
   const rateClass = r.rate >= 70 ? 'high' : 'low';
-  let html = `<tr><td><span class="rank ${medal}">${rankIdx + 1}</span></td><td class="name">${escapeHtml(r.name)}</td><td><span class="pill">${r.win}승${r.lose}패</span></td><td class="rate ${rateClass}">${fmtPct(r.rate)}</td>`;
+  let html = `<tr data-jsa-name="${escapeHtml(r.name.toLowerCase())}"><td><span class="rank ${medal}">${rankIdx + 1}</span></td><td class="name">${escapeHtml(r.name)}</td><td><span class="pill">${r.win}승${r.lose}패</span></td><td class="rate ${rateClass}">${fmtPct(r.rate)}</td>`;
   if (withMoney) {
     const profitClass = r.profit >= 0 ? 'pos' : 'neg';
     html += `<td class="money">${numFmt(r.totalBet)}</td><td class="profit ${profitClass}">${r.profit >= 0 ? '+' : ''}${numFmt(r.profit)}</td><td>${picksHtml(r.picks)}</td>`;
@@ -241,10 +255,48 @@ function render(data) {
   }
 
   contentEl.innerHTML = html;
+  applySearchFilter();
+}
+
+// 닉네임 검색: 입력된 글자가 들어간 닉네임 행만 남기고 나머지는 숨긴다.
+// (업로드된 상위 랭킹 데이터 안에서만 찾을 수 있다 — 전체 게시판 검색이 아님)
+function applySearchFilter() {
+  const input = document.getElementById('jsa-search');
+  const hint = document.getElementById('jsa-search-hint');
+  if (!input) return;
+  const q = input.value.trim().toLowerCase();
+  const rows = document.querySelectorAll('#content tr[data-jsa-name]');
+  if (!q) {
+    rows.forEach((tr) => { tr.classList.remove('jsa-hide', 'jsa-match'); });
+    document.querySelectorAll('#content details.sport').forEach((d) => { d.open = false; });
+    hint.textContent = '';
+    return;
+  }
+  let matchCount = 0;
+  const sportsWithMatch = new Set();
+  rows.forEach((tr) => {
+    const name = tr.getAttribute('data-jsa-name') || '';
+    if (name.includes(q)) {
+      tr.classList.remove('jsa-hide');
+      tr.classList.add('jsa-match');
+      matchCount++;
+      const sportDetails = tr.closest('details.sport');
+      if (sportDetails) sportsWithMatch.add(sportDetails);
+    } else {
+      tr.classList.add('jsa-hide');
+      tr.classList.remove('jsa-match');
+    }
+  });
+  sportsWithMatch.forEach((d) => { d.open = true; });
+  hint.textContent = matchCount > 0
+    ? `${matchCount}건 일치 (업로드된 상위 랭킹 안에서만 검색됩니다)`
+    : '일치하는 닉네임이 없습니다 (업로드된 상위 랭킹 밖일 수 있어요)';
 }
 
 function renderEmpty() {
   document.getElementById('meta').textContent = '';
+  const searchBox = document.querySelector('.search-box');
+  if (searchBox) searchBox.style.display = 'none';
   document.getElementById('content').innerHTML = `
     <div class="empty-state">
       <div>아직 업로드된 분석 결과가 없습니다.</div>
@@ -252,6 +304,8 @@ function renderEmpty() {
       <a class="btn" href="https://raw.githubusercontent.com/srleeinkorea/rota-status/main/fmkorea_jungsan_analyzer.user.js">유저스크립트 설치하기</a>
     </div>`;
 }
+
+document.getElementById('jsa-search').addEventListener('input', applySearchFilter);
 
 fetch('./data.json', { cache: 'no-store' })
   .then((res) => { if (!res.ok) throw new Error('no data'); return res.json(); })
