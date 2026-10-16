@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         정산 승률 분석기
 // @namespace    fmkorea-jungsan-analyzer
-// @version      3.6
+// @version      3.7
 // @description  잉여력놀이터 '정산' 게시판의 최근 24시간 내 마감 글들을 자동으로 읽어서 참가자별 승률(종합/종목별)을 집계합니다. 사이트 내부 AJAX(pp.getPpList)를 그대로 호출해서, 글을 일일이 열고 참여현황을 손으로 베낄 필요가 없습니다. 종합 랭킹에는 진행중인(아직 결과가 안 나온) 경기에 누가 어디 베팅했는지도 함께 보여줍니다.
 // @match        https://www.fmkorea.com/*
 // @grant        none
@@ -13,7 +13,7 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = '3.6';
+  const SCRIPT_VERSION = '3.7';
   const CATEGORIES = [
     { id: '4874265175', label: '정산' },
     { id: '5179656568', label: '정산(결산미포함)' },
@@ -960,6 +960,28 @@
       title: m.title, url: m.url, teamA: m.teamA, teamB: m.teamB,
       countA: m.countA, betA: m.betA, countB: m.countB, betB: m.betB,
     }));
+    // 대시보드의 "닉네임 찾기"용: 진행중인 경기에 베팅한 전체 참여자의
+    // 베팅 내역(누가 어느 팀에 얼마)을 통째로 올린다. 상위 랭킹에 없는
+    // 사람도 검색되도록 하기 위한 것. 과거 정산 전적(랭킹 기준 미달 포함)도
+    // 닉네임 검색에서 보여줄 수 있게 간단한 전적 요약도 함께 담는다.
+    const allPicks = [];
+    if (ongoingPicksMap) {
+      for (const [name, picks] of ongoingPicksMap.entries()) {
+        allPicks.push({ name, picks });
+      }
+      allPicks.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    }
+    const allRecords = [];
+    for (const [name, r] of records.entries()) {
+      const total = r.win + r.lose;
+      if (total === 0) continue;
+      allRecords.push({
+        name, win: r.win, lose: r.lose,
+        rate: Math.round((r.win / total) * 1000) / 10,
+        totalBet: r.totalBet, profit: (r.totalPayout || 0) - (r.totalBet || 0),
+      });
+    }
+    allRecords.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
     return {
       generatedAt: new Date().toISOString(),
       windowLabel: windowLabel || null,
@@ -968,6 +990,8 @@
       overall: overallSlim,
       sports: sportsSlim,
       ongoingMatches: matchesSlim,
+      allPicks,
+      allRecords,
     };
   }
 
@@ -1003,6 +1027,57 @@
       if (log) log('GitHub 대시보드 업로드 중 오류: ' + e.message);
     }
   }
+
+  // ---------- 5.6 대시보드 원격 분석 요청 (command.json 폴링) ----------
+  // 대시보드(GitHub Pages)에서 기간/최소 베팅건수를 고르고 "분석 시작"을
+  // 누르면 저장소의 command.json에 요청이 기록된다. fmkorea 탭에 떠 있는
+  // 이 스크립트가 그 파일을 주기적으로 확인해서, 새 요청이 있으면 패널의
+  // 기간/건수를 그 값으로 맞추고 분석을 대신 시작한다. (fmkorea 탭이
+  // 하나 이상 열려 있어야 작동하는 구조 — 대시보드 자체는 fmkorea에
+  // 접속할 수 없기 때문)
+  const GITHUB_COMMAND_PATH = 'command.json';
+  const CMD_HANDLED_KEY = 'jsa-last-cmd-ts';
+  const COMMAND_POLL_MS = 45 * 1000;
+  const CMD_MAX_AGE_MS = 10 * 60 * 1000; // 10분 넘게 지난 요청은 무시(오래된 잔재)
+
+  async function pollDashboardCommand() {
+    const token = getGithubToken();
+    if (!token) return;
+    const panel = document.getElementById('jsa-panel');
+    if (!panel) return; // 패널이 뜨는 페이지(마감 탭/진행중인 경기)에서만
+    try {
+      const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_COMMAND_PATH}?t=${Date.now()}`;
+      const res = await fetch(apiUrl, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.raw+json' },
+      });
+      if (!res.ok) return; // 파일 없음(404) 등 — 요청 없는 상태
+      const cmd = await res.json();
+      if (!cmd || cmd.action !== 'run' || !cmd.requestedAt) return;
+      const reqTs = new Date(cmd.requestedAt).getTime();
+      if (!reqTs) return;
+      let handled = 0;
+      try { handled = Number(localStorage.getItem(CMD_HANDLED_KEY)) || 0; } catch (e) { /* 무시 */ }
+      if (reqTs <= handled) return; // 이미 처리한 요청
+      try { localStorage.setItem(CMD_HANDLED_KEY, String(reqTs)); } catch (e) { /* 무시 */ }
+      if (Date.now() - reqTs > CMD_MAX_AGE_MS) return; // 너무 오래된 요청은 기록만 하고 무시
+
+      const windowSel = panel.querySelector('#jsa-window');
+      const minInput = panel.querySelector('#jsa-minpicks');
+      if (cmd.windowValue && windowSel && windowSel.querySelector(`option[value="${cmd.windowValue}"]`)) {
+        windowSel.value = cmd.windowValue;
+      }
+      const mp = parseInt(cmd.minPicks, 10);
+      if (mp >= 1 && minInput) minInput.value = String(mp);
+
+      // 이미 분석이 돌고 있으면 새로 시작하지 않음(중복 실행 방지)
+      const job = loadJob();
+      if (job && job.status === 'running') return;
+      const runBtn = panel.querySelector('#jsa-run');
+      if (runBtn) runBtn.click();
+    } catch (e) { /* 네트워크 오류 등 — 다음 폴링에서 재시도 */ }
+  }
+  setInterval(pollDashboardCommand, COMMAND_POLL_MS);
+  setTimeout(pollDashboardCommand, 6000);
 
   // ---------- 6. 새로고침에도 끊기지 않는 작업(Job) 상태 저장 ----------
   // 이 페이지(dispBoardOngoingMatches)는 다른 스크립트가 1분마다 새로고침을 거는 경우가 있어서,
