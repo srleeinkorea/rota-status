@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         정산 승률 분석기
 // @namespace    fmkorea-jungsan-analyzer
-// @version      3.5
+// @version      3.6
 // @description  잉여력놀이터 '정산' 게시판의 최근 24시간 내 마감 글들을 자동으로 읽어서 참가자별 승률(종합/종목별)을 집계합니다. 사이트 내부 AJAX(pp.getPpList)를 그대로 호출해서, 글을 일일이 열고 참여현황을 손으로 베낄 필요가 없습니다. 종합 랭킹에는 진행중인(아직 결과가 안 나온) 경기에 누가 어디 베팅했는지도 함께 보여줍니다.
 // @match        https://www.fmkorea.com/*
 // @grant        none
@@ -13,7 +13,7 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = '3.5';
+  const SCRIPT_VERSION = '3.6';
   const CATEGORIES = [
     { id: '4874265175', label: '정산' },
     { id: '5179656568', label: '정산(결산미포함)' },
@@ -329,8 +329,11 @@
   }
 
   // 경기(글) 여러 건을 CONCURRENCY개씩 동시에 처리 — 한 건씩 순서대로 기다리지 않는다.
+  // 사람별 picks map 외에, 대시보드의 "진행중인 경기 목록" 섹션용으로 경기 자체의
+  // 목록(팀별 베팅 인원수/총액)도 함께 모아서 반환한다.
   async function collectOngoingPicks(log) {
     const map = new Map(); // nick_name -> [{team, url, bet}]
+    const matches = []; // [{title, url, teamA, teamB, countA, betA, countB, betB}]
     try {
       const posts = await getOngoingMatchPosts();
       log(`진행중인 경기 ${posts.length}건의 베팅 현황을 확인하는 중...`);
@@ -344,16 +347,20 @@
             const pk = await fetchPostDetail(post.document_srl);
             if (!pk) return;
             const { opt1, opt2 } = await fetchOngoingBettors(pk);
+            let countA = 0, betA = 0, countB = 0, betB = 0;
             for (const e of opt1) {
               if (!e.nick_name) continue;
               if (!map.has(e.nick_name)) map.set(e.nick_name, []);
               map.get(e.nick_name).push({ team: matchup.a, url, bet: e.point || 0 });
+              countA++; betA += e.point || 0;
             }
             for (const e of opt2) {
               if (!e.nick_name) continue;
               if (!map.has(e.nick_name)) map.set(e.nick_name, []);
               map.get(e.nick_name).push({ team: matchup.b, url, bet: e.point || 0 });
+              countB++; betB += e.point || 0;
             }
+            matches.push({ title: post.title, url, teamA: matchup.a, teamB: matchup.b, countA, betA, countB, betB });
           } catch (e) {
             log('  -> 진행중 경기 베팅 조회 오류: ' + e.message);
           }
@@ -363,7 +370,7 @@
     } catch (e) {
       log('진행중인 경기 목록 조회 실패: ' + e.message);
     }
-    return map;
+    return { map, matches };
   }
 
   // ---------- 4. 집계 ----------
@@ -934,8 +941,8 @@
     return btoa(binary);
   }
 
-  // 업로드할 JSON payload 구성 — 종합 랭킹 상위 N명 + 종목별 랭킹 + 진행중인 베팅 picks
-  function buildDashboardPayload(records, minPicks, ongoingPicksMap, windowLabel) {
+  // 업로드할 JSON payload 구성 — 종합 랭킹 상위 N명 + 종목별 랭킹 + 진행중인 베팅 picks + 진행중인 경기 목록
+  function buildDashboardPayload(records, minPicks, ongoingPicksMap, windowLabel, ongoingMatches) {
     const overall = overallRanking(records, minPicks);
     const bySport = sportRanking(records, Math.max(2, Math.min(2, minPicks)));
     const overallSlim = overall.slice(0, UPLOAD_TOP_N).map((r) => ({
@@ -949,6 +956,10 @@
         name: r.name, win: r.win, lose: r.lose, total: r.total, rate: Math.round(r.rate * 10) / 10,
       }));
     }
+    const matchesSlim = (ongoingMatches || []).map((m) => ({
+      title: m.title, url: m.url, teamA: m.teamA, teamB: m.teamB,
+      countA: m.countA, betA: m.betA, countB: m.countB, betB: m.betB,
+    }));
     return {
       generatedAt: new Date().toISOString(),
       windowLabel: windowLabel || null,
@@ -956,14 +967,15 @@
       totalParticipants: overall.length,
       overall: overallSlim,
       sports: sportsSlim,
+      ongoingMatches: matchesSlim,
     };
   }
 
-  async function uploadResultsToGitHub(records, minPicks, ongoingPicksMap, windowLabel, log) {
+  async function uploadResultsToGitHub(records, minPicks, ongoingPicksMap, windowLabel, ongoingMatches, log) {
     const token = getGithubToken();
     if (!token) return; // 토큰 설정 안 돼 있으면 조용히 건너뜀 (패널 설정에서 등록 가능)
     try {
-      const payload = buildDashboardPayload(records, minPicks, ongoingPicksMap, windowLabel);
+      const payload = buildDashboardPayload(records, minPicks, ongoingPicksMap, windowLabel, ongoingMatches);
       const content = utf8ToBase64(JSON.stringify(payload, null, 2));
       const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_DATA_PATH}`;
       const headers = {
@@ -1102,13 +1114,18 @@
     setProgress(97, '진행중인 경기 베팅 정보 수집 중...');
     log('진행중인 경기 베팅 정보 수집 중...');
     let ongoingPicksMap;
+    let ongoingMatches;
     if (job.ongoingPicks) {
       // 이미 한 번 수집해둔 게 있으면(예: 1분마다 새로고침되는 페이지에서 재개된 경우)
       // 다시 긁지 않고 그대로 재사용한다.
       ongoingPicksMap = new Map(job.ongoingPicks);
+      ongoingMatches = job.ongoingMatches || [];
     } else {
-      ongoingPicksMap = await collectOngoingPicks(log);
+      const collected = await collectOngoingPicks(log);
+      ongoingPicksMap = collected.map;
+      ongoingMatches = collected.matches;
       job.ongoingPicks = Array.from(ongoingPicksMap.entries());
+      job.ongoingMatches = ongoingMatches;
       saveJob(job);
     }
 
@@ -1124,7 +1141,7 @@
     renderResult(panel, records, job.minPicks, ongoingPicksMap);
 
     // 새로 완료된 분석 결과를 GitHub 대시보드용 데이터로 올림 (토큰 미설정 시 조용히 건너뜀)
-    uploadResultsToGitHub(records, job.minPicks, ongoingPicksMap, job.windowLabel, log);
+    uploadResultsToGitHub(records, job.minPicks, ongoingPicksMap, job.windowLabel, ongoingMatches, log);
   }
 
   async function startNewRun(panel) {
