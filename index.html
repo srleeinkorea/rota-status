@@ -131,28 +131,11 @@
   .remote-status { font-size:12px; color:var(--dim); margin:6px 2px 0; min-height:16px; }
   .remote-status.ok { color:var(--win); }
   .remote-status.err { color:var(--lose); }
-  #jsa-lock {
-    position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center;
-    z-index:999; flex-direction:column; gap:14px;
-  }
-  #jsa-lock .box { text-align:center; }
-  #jsa-lock input {
-    background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:10px;
-    padding:10px 14px; font-size:16px; letter-spacing:4px; text-align:center; width:140px; outline:none;
-  }
-  #jsa-lock input:focus { border-color:var(--accent); }
-  #jsa-lock .err { color:var(--lose); font-size:12.5px; min-height:16px; }
+
 </style>
 </head>
 <body>
-  <div id="jsa-lock">
-    <div class="box">
-      <div style="font-size:14px; color:var(--dim); margin-bottom:10px;">🔒 비밀번호를 입력하세요</div>
-      <input id="jsa-pw" type="password" inputmode="numeric" maxlength="8" autofocus>
-      <div class="err" id="jsa-pw-err"></div>
-    </div>
-  </div>
-  <div class="wrap" id="jsa-wrap" style="display:none;">
+  <div class="wrap" id="jsa-wrap">
     <header>
       <h1>📊 정산 승률 대시보드</h1>
       <a class="install-link" href="https://raw.githubusercontent.com/srleeinkorea/rota-status/main/fmkorea_jungsan_analyzer.user.js">유저스크립트 설치</a>
@@ -187,37 +170,6 @@
     <div id="content"></div>
   </div>
 
-<script>
-(function () {
-  const SITE_PW = '0000';
-  const lockEl = document.getElementById('jsa-lock');
-  const wrapEl = document.getElementById('jsa-wrap');
-  const input = document.getElementById('jsa-pw');
-  const errEl = document.getElementById('jsa-pw-err');
-
-  function unlock() {
-    lockEl.style.display = 'none';
-    wrapEl.style.display = '';
-    try { sessionStorage.setItem('jsa-unlocked', '1'); } catch (e) {}
-  }
-
-  let already = false;
-  try { already = sessionStorage.getItem('jsa-unlocked') === '1'; } catch (e) {}
-  if (already) {
-    unlock();
-  } else {
-    input.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter') return;
-      if (input.value === SITE_PW) {
-        unlock();
-      } else {
-        errEl.textContent = '비밀번호가 올바르지 않습니다.';
-        input.value = '';
-      }
-    });
-  }
-})();
-</script>
 <script>
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
